@@ -28,8 +28,8 @@ python drew_fig.py input_sequence_merged/prediction_results.txt
 ```
 
 ## Model training
-1.Download data
 You can also train your own model according to your task.
+1.Download data
 You can download the training data from [NCBI](https://ftp.ncbi.nlm.nih.gov/refseq/release/) using download_data.py
 ```
 python download_data.py
