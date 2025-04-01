@@ -4,7 +4,7 @@ from torch.utils.data import Dataset, DataLoader
 from torch import nn
 import torch.nn.functional as F
 import sys
-
+import pandas as pd
 
 def process_record(record):
     sequence = str(record.seq).upper()
@@ -12,6 +12,10 @@ def process_record(record):
     result = identify_seq(seqid, sequence)
     return result
 
+def determine_virus(group):
+    max_score1 = group["score1"].max()
+    max_score2 = group["score2"].max()
+    return pd.Series({"Is_Virus": max_score2 >= max_score1})  # 直接返回 True/False
 
 class PredictDataBatchDataset(Dataset):
     def __init__(self, file_list):
@@ -161,7 +165,7 @@ def make_predictdata(predict_fasta_file, expect_length, model_path):
 
     predict_dataset = PredictDataBatchDataset(merged_list)
     predict_loader = DataLoader(predict_dataset, batch_size=256, shuffle=False, num_workers=4)
-    mlp_model = torch.load(model_path)
+    mlp_model = torch.load(model_path, weights_only=False)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     mlp_model = mlp_model.to(device)
     seqids, predictions, probabilities = predict(mlp_model, predict_loader, device)
@@ -175,6 +179,16 @@ def make_predictdata(predict_fasta_file, expect_length, model_path):
             f.write(f"{seqid}\t{prediction}\t{prob_str}\n")
 
     print(f"Predictions saved to {output_file}")
+
+    df = pd.read_csv(output_file, sep="\t")
+
+    df["Modified_ID"] = df["Sequence_ID"].str[:-2]
+
+    df = df.groupby("Modified_ID", group_keys=False).apply(determine_virus).reset_index()
+
+    df.to_csv(output_folder + "prediction_results_highestscore.csv", sep="\t", index=False)
+
+    print("Prediction results with highest sore saved to 'prediction_results_highestscore.csv'")
 
 predict_fasta_file = sys.argv[1]
 expect_length = sys.argv[2]
